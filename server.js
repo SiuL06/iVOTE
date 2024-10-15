@@ -1,75 +1,56 @@
-import express from 'express'; // Import Express
-import { createServer } from 'http'; // Import HTTP
-import { Server } from 'socket.io'; // Import Socket.io
-import { fileURLToPath } from 'url'; // Import fileURLToPath
-import { dirname, join } from 'path'; // Import path module
-import dotenv from 'dotenv'; // Import dotenv
-import helmet from 'helmet'; // Import helmet
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import { fileURLToPath } from 'url'; // Import for getting the file path
+import { dirname, join } from 'path'; // Import for handling file paths
 
-// Load environment variables from .env file
-dotenv.config();
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 
-// Use fileURLToPath and dirname to get __dirname
+const nominees = []; // Store nominees here
+
+// Get current directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const app = express(); // Create an Express application
-const server = createServer(app); // Create HTTP server
-const io = new Server(server); // Create Socket.io server
+// Serve static files from the dist directory
+app.use(express.static(join(__dirname, 'dist'))); // Adjust the path as needed
 
-// Sample nominees data
-let nominees = [
-  { id: 1, name: 'Nominee 1', score: 0 },
-  { id: 2, name: 'Nominee 2', score: 0 }
-];
-
-// Use helmet to set security headers
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      fontSrc: ["'self'", "http://localhost:3000"], // Allow fonts from the same origin
-      // Add other directives as necessary
-    }
-  }
-}));
-
-// Serve the Vue.js application
-app.use(express.static(join(__dirname, 'dist')));
-
-app.get('*', (req, res) => {
-  res.sendFile(join(__dirname, 'dist', 'index.html'));
+// Define a route for the root URL
+app.get('/', (req, res) => {
+    res.sendFile(join(__dirname, 'dist', 'index.html')); // Serve index.html from dist
 });
 
-// Socket.io connection
+// Handle socket connections
 io.on('connection', (socket) => {
-  console.log('A user connected');
+    console.log('A user connected:', socket.id);
 
-  // Send initial nominees to the newly connected user
-  socket.emit('nomineeUpdate', nominees);
+    // Send current nominees to the newly connected client
+    socket.emit('nomineeUpdate', nominees);
 
-  // Listen for nominee updates from the client
-  socket.on('nomineeUpdate', (updatedNominees) => {
-    nominees = updatedNominees; // Update nominees on the server
-    io.emit('nomineeUpdate', nominees); // Broadcast updated nominees to all clients
-    console.log('Nominees updated:', nominees); // Debug log
-  });
+    // Listen for nominee updates
+    socket.on('nomineeUpdate', (updatedNominees) => {
+        nominees.length = 0; // Clear existing nominees
+        nominees.push(...updatedNominees); // Update nominees
+        // Broadcast the updated nominees to all connected clients
+        io.emit('nomineeUpdate', nominees);
+    });
 
-  // Listen for chat messages
-  socket.on('chatMessage', (msg) => {
-    console.log('Chat message received:', msg);
-    io.emit('chatMessage', msg); // Broadcast the message to all clients
-  });
+    // Handle chat messages
+    socket.on('chatMessage', (message) => {
+        // Broadcast the chat message to all connected clients
+        io.emit('chatMessage', message);
+    });
 
-  // Log when a user disconnects
-  socket.on('disconnect', () => {
-    console.log('User disconnected');
-  });
+    // Handle user disconnect
+    socket.on('disconnect', () => {
+        console.log('A user disconnected:', socket.id);
+    });
 });
 
-// Set the port to listen on
-// eslint-disable-next-line no-undef
-const PORT = process.env.PORT || 3000; // Use environment variable or default to 3000
+// Start the server
+const PORT = 3000; // You can change this port
 server.listen(PORT, () => {
-  console.log(`Listening on *:${PORT}`); // Log the port being listened on
+    console.log(`Server is running on http://localhost:${PORT}`);
 });

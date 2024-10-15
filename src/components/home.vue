@@ -1,11 +1,7 @@
 <template>
   <div class="container">
     <!-- Logo -->
-    <img
-      src="@/assets/ivotelogo.png"
-      alt="Logo"
-      class="logo"
-    />
+    <img src="@/assets/ivotelogo.png" alt="Logo" class="logo" />
 
     <!-- Header -->
     <h1 class="header">COMMISSION ON STUDENT ELECTIONS</h1>
@@ -16,7 +12,8 @@
     <!-- Buttons Layout -->
     <div class="buttons-container">
       <button class="btn add-nominee" @click="addNominee">Add Nominee</button>
-      <button class="btn reset" @click="reset">Reset</button>
+      <button class="btn reset" @click="resetAndRemoveNominees">Reset</button>
+      <button class="btn submit-votes" @click="submitVotes">Submit Votes</button>
     </div>
 
     <!-- Nominee Cards Container -->
@@ -24,7 +21,11 @@
       <div v-for="nominee in nominees" :key="nominee.id" class="card">
         <h3 class="nominee-title">{{ nominee.name }}</h3>
         <div class="score">{{ nominee.score }}</div>
-        <button class="btn edit" @click="editNominee(nominee.id)">Edit</button>
+
+        <!-- Rename and Reset buttons for each nominee -->
+        <button class="btn rename" @click="renameNominee(nominee.id)">Rename</button>
+        <button class="btn reset" @click="resetNomineeScore(nominee.id)">Reset</button>
+
         <div class="adjust-buttons">
           <button class="btn minus" @click="adjustScore(nominee.id, -1)">-</button>
           <button class="btn plus" @click="adjustScore(nominee.id, 1)">+</button>
@@ -41,35 +42,101 @@
 </template>
 
 <script>
+import { io } from 'socket.io-client';
+import { getFirestore, doc, setDoc } from 'firebase/firestore'; // Import Firestore functions
+
 export default {
   name: 'HomePage',
   data() {
     return {
-      nominees: [
-        { id: 1, name: 'ONE', score: 0 },
-        { id: 2, name: 'TWO', score: 0 }
-      ],
+      nominees: [], // Start with an empty array
+      nextId: 1, // Keep track of the next nominee's ID
+      socket: null, // Socket.io connection
+      db: null // Firestore reference
     };
+  },
+  mounted() {
+    // Connect to the Socket.io server
+    this.socket = io('http://localhost:3000');
+
+    // Initialize Firestore
+    this.db = getFirestore();
+
+    // Listen for nominee updates from the server
+    this.socket.on('nomineeUpdate', (updatedNominees) => {
+      this.nominees = updatedNominees; // Update nominees in real-time
+    });
   },
   methods: {
     addNominee() {
-      console.log('Add Nominee clicked');
-      // Implement add nominee logic here
+      const name = prompt("Enter nominee's name:");
+      if (name) {
+        this.nominees.push({ id: this.nextId, name, score: 0 });
+        this.nextId++; // Increment the next ID
+        this.updateNominees(); // Emit update to the server
+      }
     },
-    reset() {
-      this.nominees.forEach(nominee => nominee.score = 0);
-      console.log('Reset clicked');
+    resetAndRemoveNominees() {
+      this.nominees = []; // Clear the nominees array to remove all nominees
+      this.nextId = 1; // Reset the nextId back to 1
+      this.updateNominees(); // Emit update to the server
+      console.log('All nominees have been reset and removed');
     },
-    editNominee(nomineeId) {
-      console.log('Edit Nominee', nomineeId);
-      // Implement edit nominee logic here
+    renameNominee(nomineeId) {
+      const nominee = this.nominees.find(n => n.id === nomineeId);
+      if (nominee) {
+        const newName = prompt("Enter the new name:");
+        if (newName) {
+          nominee.name = newName;
+          this.updateNominees(); // Emit update to the server
+          console.log(`Nominee renamed to: ${newName}`);
+        }
+      }
+    },
+    resetNomineeScore(nomineeId) {
+      const nominee = this.nominees.find(n => n.id === nomineeId);
+      if (nominee) {
+        nominee.score = 0;
+        this.updateNominees(); // Emit update to the server
+        console.log(`Score reset for: ${nominee.name}`);
+      }
     },
     adjustScore(nomineeId, change) {
       const nominee = this.nominees.find(n => n.id === nomineeId);
       if (nominee) {
         nominee.score += change;
+        this.updateNominees(); // Emit update to the server
         console.log('Adjust Score for Nominee', nomineeId, 'Change:', change);
       }
+    },
+    updateNominees() {
+      // Emit the updated nominees to the server
+      this.socket.emit('nomineeUpdate', this.nominees);
+    },
+    async submitVotes() {
+      console.log('Submit Votes button clicked'); // Log to confirm the method is triggered
+      alert("Submit Votes button clicked!"); // Confirming the button click
+
+      // Create an object to hold nominees' names and their scores
+      const votesData = {};
+      this.nominees.forEach(nominee => {
+        votesData[nominee.name] = nominee.score; // Create an object mapping nominee names to scores
+      });
+
+      try {
+        // Set the votes in Firestore
+        const votesRef = doc(this.db, 'votes', 'electionVotes'); // Create a document in the 'votes' collection
+        await setDoc(votesRef, votesData); // Save the votes to the document
+        console.log('Votes submitted successfully');
+      } catch (error) {
+        console.error('Error submitting votes:', error);
+      }
+    }
+  },
+  beforeUnmount() {
+    // Clean up the socket connection when the component is destroyed
+    if (this.socket) {
+      this.socket.disconnect();
     }
   }
 };
@@ -84,7 +151,7 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  overflow: hidden; /* Remove scrollbar */
+  overflow: hidden;
 }
 
 .logo {
@@ -109,15 +176,19 @@ export default {
 .buttons-container {
   display: flex;
   justify-content: space-between;
-  width: 300px;
+  align-items: center;
+  gap: 20px;
   margin: 20px 0;
 }
 
 .btn {
   padding: 10px 20px;
+  width: 140px;
+  height: 50px;
   border: none;
   border-radius: 5px;
   cursor: pointer;
+  text-align: center;
 }
 
 .add-nominee {
@@ -127,6 +198,11 @@ export default {
 
 .reset {
   background-color: #ff0000;
+  color: #fff;
+}
+
+.submit-votes {
+  background-color: #007bff; /* Style for submit votes button */
   color: #fff;
 }
 
@@ -147,8 +223,8 @@ export default {
   text-align: center;
   margin-bottom: 20px;
   position: relative;
-  width: 45%; /* Adjust width to fit two cards per row */
-  max-width: 200px; /* Ensure a maximum width for each card */
+  width: 45%;
+  max-width: 200px;
 }
 
 .nominee-title {
@@ -161,41 +237,34 @@ export default {
   margin: 20px 0;
 }
 
-.edit {
-  background-color: #ffc107;
-  color: #000;
-  padding: 5px 10px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  position: absolute;
-  top: 10px;
-  right: 10px;
+.rename,
+.reset {
+  background-color: #007bff;
+  color: #fff;
+  margin: 5px 0;
 }
 
 .adjust-buttons {
   display: flex;
   justify-content: space-between;
+  margin-top: 10px;
 }
 
-.minus, .plus {
-  background-color: #ffc107;
-  color: #000;
-  padding: 10px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  width: 45px;
+.plus,
+.minus {
+  background-color: #28a745;
+  color: #fff;
+  width: 40px;
 }
 
 .year {
   margin-top: auto;
-  font-size: 18px;
+  font-size: 16px;
+  margin-bottom: 5px;
 }
 
 .footer {
-  font-size: 12px;
-  margin-top: 5px;
-  margin-bottom: 50px;
+  margin: 0;
+  font-size: 14px;
 }
 </style>
