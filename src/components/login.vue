@@ -58,6 +58,9 @@ export default {
           const userCredential = await signInWithEmailAndPassword(auth, this.login, this.password);
           console.log('User logged in:', userCredential.user);
 
+          // Store the user's email in localStorage
+          localStorage.setItem('userEmail', this.login);
+
           // Redirect to the home page after successful login
           this.$router.push('/home'); // Ensure you have the route to home.vue set up
 
@@ -76,11 +79,6 @@ export default {
   },
 };
 </script>
-
-<style scoped>
-/* Your existing styles remain unchanged */
-</style>
-
 
 <style scoped>
 html, body {
@@ -185,7 +183,7 @@ html, body {
 }
 
 .register-link {
-  color: white ; /* Change color to match the button */
+  color: white; /* Change color to match the button */
   cursor: pointer;
   text-decoration: underline;
 }

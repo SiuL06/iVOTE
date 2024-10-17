@@ -25,11 +25,6 @@
         <!-- Rename and Reset buttons for each nominee -->
         <button class="btn rename" @click="renameNominee(nominee.id)">Rename</button>
         <button class="btn reset" @click="resetNomineeScore(nominee.id)">Reset</button>
-
-        <div class="adjust-buttons">
-          <button class="btn minus" @click="adjustScore(nominee.id, -1)">-</button>
-          <button class="btn plus" @click="adjustScore(nominee.id, 1)">+</button>
-        </div>
       </div>
     </div>
 
@@ -99,14 +94,6 @@ export default {
         nominee.score = 0;
         this.updateNominees(); // Emit update to the server
         console.log(`Score reset for: ${nominee.name}`);
-      }
-    },
-    adjustScore(nomineeId, change) {
-      const nominee = this.nominees.find(n => n.id === nomineeId);
-      if (nominee) {
-        nominee.score += change;
-        this.updateNominees(); // Emit update to the server
-        console.log('Adjust Score for Nominee', nomineeId, 'Change:', change);
       }
     },
     updateNominees() {
@@ -242,19 +229,6 @@ export default {
   background-color: #007bff;
   color: #fff;
   margin: 5px 0;
-}
-
-.adjust-buttons {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
-}
-
-.plus,
-.minus {
-  background-color: #28a745;
-  color: #fff;
-  width: 40px;
 }
 
 .year {
