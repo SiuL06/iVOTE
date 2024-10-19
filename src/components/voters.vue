@@ -1,34 +1,48 @@
 <template>
   <div class="container">
+    <!-- Logo -->
     <img src="@/assets/ivotelogo.png" alt="Logo" class="logo" />
-    <h1 class="header">Vote for Your Nominees</h1>
 
-    <div v-for="nominee in nominees" :key="nominee.id" class="card">
-      <h2 class="nominee-title">{{ nominee.name }}</h2>
-      <div class="score">{{ nominee.score }}</div>
-      <button 
-        @click="submitVote(nominee.id)" 
-        :disabled="hasVoted" 
-        class="vote-btn">
-        Vote
-      </button>
+    <!-- Header -->
+    <h1 class="header">COMMISSION ON STUDENT ELECTIONS - VIEW NOMINEES</h1>
+
+    <!-- Nominees Label -->
+    <h2 class="nominees-label">Nominees:</h2>
+
+    <!-- Nominee Cards Container with radio buttons -->
+    <div class="nominees-container">
+      <div v-for="nominee in nominees" :key="nominee.id" class="card">
+        <input
+          type="radio"
+          v-model="selectedNominee"
+          :value="nominee.name"
+        />
+        <label class="nominee-title">{{ nominee.name }}</label>
+        <div class="score">{{ nominee.score }}</div>
+      </div>
     </div>
 
+    <!-- Submit Button -->
+    <button class="btn submit-votes" @click="submitVote">Submit Vote</button>
+
+    <!-- Year Text -->
     <p class="year">2024</p>
+
+    <!-- Footer Text -->
     <p class="footer">Group 7(iVOTE)</p>
   </div>
 </template>
 
 <script>
 import { io } from 'socket.io-client';
-import { getFirestore, doc, collection, getDocs, updateDoc, increment } from 'firebase/firestore'; // Import Firestore functions
+import { getFirestore, doc, setDoc } from 'firebase/firestore'; // Import Firestore
 
 export default {
-  name: 'VoterComponent', // Multi-word component name
+  name: 'ViewNomineesPage',
   data() {
     return {
-      nominees: [], // Array of nominees fetched from Firestore
-      hasVoted: false, // Flag to check if user has voted
+      nominees: [], // Array to store nominees
+      selectedNominee: '', // Variable to store the selected nominee for voting
       socket: null, // Socket.io connection
       db: null // Firestore reference
     };
@@ -44,39 +58,30 @@ export default {
     this.socket.on('nomineeUpdate', (updatedNominees) => {
       this.nominees = updatedNominees; // Update nominees in real-time
     });
-
-    // Fetch nominees from Firestore on mount
-    this.fetchNominees();
   },
   methods: {
-    async fetchNominees() {
-      try {
-        const snapshot = await getDocs(collection(this.db, 'nominees'));
-        this.nominees = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      } catch (error) {
-        console.error("Error fetching nominees: ", error);
+    async submitVote() {
+      // Check if a nominee is selected
+      if (!this.selectedNominee) {
+        alert('Please select a nominee to vote for.');
+        return;
       }
-    },
-    async submitVote(nomineeId) {
-      if (!this.hasVoted) { // Ensure user hasn't already voted
-        console.log('Voting for nominee:', nomineeId); // Log selected nominee
-        
-        // Reference to the nominee document
-        const nomineeRef = doc(this.db, 'nominees', nomineeId);
 
-        try {
-          // Increment the vote count in Firestore
-          await updateDoc(nomineeRef, {
-            score: increment(1) // Increment score by 1
-          });
+      // Create a vote object with the selected nominee
+      const voteData = {
+        vote: this.selectedNominee,
+        timestamp: new Date() // Optional: store when the vote was cast
+      };
 
-          console.log('Vote submitted successfully!');
-          this.hasVoted = true; // Set hasVoted to true after voting
-        } catch (error) {
-          console.error("Error updating vote count: ", error);
-        }
-      } else {
-        console.log('You have already voted.');
+      try {
+        // Save the vote in Firestore
+        const voteRef = doc(this.db, 'votes', 'userVote'); // Store each vote in a 'votes' collection
+        await setDoc(voteRef, voteData);
+        console.log('Vote submitted successfully');
+        alert('Your vote has been submitted successfully!');
+      } catch (error) {
+        console.error('Error submitting vote:', error);
+        alert('Error submitting vote, please try again.');
       }
     }
   },
@@ -114,14 +119,31 @@ export default {
   text-align: center;
 }
 
+.nominees-label {
+  margin-top: 20px;
+  font-size: 20px;
+  text-align: center;
+}
+
+.nominees-container {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  width: 100%;
+  padding: 0 20px;
+  box-sizing: border-box;
+  margin-top: 20px;
+}
+
 .card {
   background-color: #4a4a61;
   padding: 20px;
   border-radius: 10px;
   text-align: center;
-  margin: 10px 0; /* Adjust margin for spacing */
-  width: 90%;
-  max-width: 300px;
+  margin-bottom: 20px;
+  position: relative;
+  width: 45%;
+  max-width: 200px;
 }
 
 .nominee-title {
@@ -134,19 +156,17 @@ export default {
   margin: 20px 0;
 }
 
-.vote-btn {
-  background-color: #007bff;
-  color: #fff;
-  padding: 10px 15px;
+.btn {
+  padding: 10px 20px;
+  width: 140px;
+  height: 50px;
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  margin-top: 10px;
-}
-
-.vote-btn:disabled {
-  background-color: #6c757d; /* Change to grey when disabled */
-  cursor: not-allowed; /* Change cursor to indicate non-clickable */
+  text-align: center;
+  background-color: #007bff; /* Submit votes button color */
+  color: #fff;
+  margin-top: 20px;
 }
 
 .year {
@@ -160,3 +180,5 @@ export default {
   font-size: 14px;
 }
 </style>
+
+Please record every votes of the user in firestore

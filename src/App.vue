@@ -9,6 +9,7 @@
         <router-link to="/register">Register</router-link>
         <router-link to="/results">Results</router-link>
         <router-link to="/contact">Contact</router-link>
+        <router-link to="/voters">voters</router-link>
       </nav>
       <router-view></router-view> <!-- This will render the matched component -->
     </div>

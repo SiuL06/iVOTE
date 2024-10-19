@@ -7,7 +7,7 @@
       <section class="nominees">
         <div class="nominee" v-for="nominee in nominees" :key="nominee.id">
           <h2>{{ nominee.name }}</h2>
-          <p>Votes: <span>{{ nominee.score }}</span></p> <!-- Display the number of votes -->
+          <p>Votes: <span>{{ nominee.score }}</span></p>
         </div>
       </section>
       <section class="live-chat">
@@ -30,17 +30,17 @@
 <script>
 import { io } from 'socket.io-client';
 import { db } from '@/firebase'; // Adjust the path as necessary
-import { collection, onSnapshot, doc, getDoc } from 'firebase/firestore'; // For Firestore
+import { collection, onSnapshot, addDoc, doc, getDoc } from 'firebase/firestore'; // For Firestore
 import { getAuth } from 'firebase/auth'; // Import Firebase Auth
 
 export default {
   name: 'LivePage',
   data() {
     return {
-      nominees: [],  // Store nominees with their vote counts
-      chatMessages: [], // Store chat messages
-      newMessage: '', // Input for new chat message
-      socket: null, // Socket.io connection
+      nominees: [],
+      chatMessages: [],
+      newMessage: '',
+      socket: null,
       username: 'User', // Default username
     };
   },
@@ -58,42 +58,73 @@ export default {
       this.nominees = updatedNominees; // Update nominees in real-time
     });
 
-    // Listen for chat messages
-    this.socket.on('chatMessage', (message) => {
-      this.chatMessages.push(message);
+    // Load existing chat messages from Firestore
+    const chatCollection = collection(db, 'chatMessages'); // Reference to chatMessages collection in Firestore
+    onSnapshot(chatCollection, (snapshot) => {
+      const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); // Retrieve messages
+      this.updateChatMessages(messages); // Update chat messages without duplicates
     });
 
-    // Fetch initial nominees from Firestore
-    const nomineesCollection = collection(db, 'nominees');
-    onSnapshot(nomineesCollection, (snapshot) => {
-      this.nominees = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })); // Include the score field
+    // Listen for chat messages from the server
+    this.socket.on('chatMessage', (messageData) => {
+      this.updateChatMessages([messageData]); // Update chat messages with the new message
     });
   },
   methods: {
     async fetchUserName(userId) {
-      const userDoc = await getDoc(doc(db, 'users', userId));
-      if (userDoc.exists()) {
-        this.username = userDoc.data().firstName; // Get user's first name
+      if (userId) {
+        const userDoc = doc(db, 'users', userId); // Reference to the user document
+        const userSnapshot = await getDoc(userDoc);
+
+        if (userSnapshot.exists()) {
+          const userData = userSnapshot.data();
+          this.username = userData.firstName || 'User'; // Set username to firstName or default to 'User'
+        } else {
+          console.error("No such user document!");
+          this.username = 'User'; // Fallback username
+        }
+      } else {
+        console.error("No authenticated user found!");
+        this.username = 'User'; // Fallback if no user is authenticated
       }
     },
-    sendMessage() {
-      if (this.newMessage.trim() === '') return;
-
-      const message = {
-        user: this.username,
-        message: this.newMessage,
-      };
-
-      this.socket.emit('chatMessage', message);
-      this.newMessage = ''; // Clear the input after sending
+    async sendMessage() {
+      if (this.newMessage.trim()) {
+        const messageData = {
+          user: this.username, // Ensure user is included
+          message: this.newMessage,
+          timestamp: Date.now() // Add timestamp for ordering
+        };
+        this.socket.emit('chatMessage', messageData); // Emit chat message to the server
+        this.newMessage = ''; // Clear the input field
+        
+        // Save message to Firestore as well
+        await this.saveMessageToFirestore(messageData);
+      }
     },
+    async saveMessageToFirestore(messageData) {
+      const chatCollection = collection(db, 'chatMessages'); // Reference to chatMessages collection in Firestore
+      try {
+        await addDoc(chatCollection, messageData); // Add new message to Firestore
+        console.log("Message saved successfully to Firestore");
+      } catch (error) {
+        console.error("Error saving message to Firestore:", error);
+      }
+    },
+    updateChatMessages(newMessages) {
+      newMessages.forEach((newMessage) => {
+        const exists = this.chatMessages.some(message => message.timestamp === newMessage.timestamp && message.user === newMessage.user && message.message === newMessage.message);
+        if (!exists) {
+          this.chatMessages.push(newMessage); // Add the new message if it doesn't already exist
+        }
+      });
+    }
   },
   beforeUnmount() {
-    // Clean up the socket connection when the component is destroyed
     if (this.socket) {
       this.socket.disconnect();
     }
-  },
+  }
 };
 </script>
 

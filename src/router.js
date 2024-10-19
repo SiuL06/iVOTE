@@ -8,6 +8,8 @@ import LivePage from './components/live.vue'; // Update with your actual path
 import RegisterPage from './components/register.vue'; // Update with your actual path
 import ResultsPage from './components/result.vue'; // Update with your actual path
 import ContactPage from './components/contact.vue';  // Update with your actual path
+import VoterComponent from '@/components/voters.vue'; // Adjust the path as necessary
+
 
 const routes = [
   { path: '/', component: LandingPage }, // Set LandingPage as the default route
@@ -17,6 +19,7 @@ const routes = [
   { path: '/home', component: Home },  // Home page route
   { path: '/login', component: LoginPage }, // Login page route
   { path: '/contact', component: ContactPage }, // Result page route
+  { path: '/voters', component: VoterComponent }, // Result page route
   {
     path: '/result',
     component: ResultsPage,
